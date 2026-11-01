@@ -603,4 +603,43 @@ TEST_F(UniformQuantizedAddOpTest,
               ::testing::HasSubstr("must be per-axis quantized"));
 }
 
+TEST_F(UniformQuantizedAddOpTest,
+       PerAxisLhsBroadcastOnQuantizationAxisRaisesError) {
+  TF_ASSERT_OK(NodeDefBuilder("test", "UniformQuantizedAdd")
+                   .Input(FakeInput(DT_QINT32))
+                   .Input(FakeInput(DT_QINT32))
+                   .Input(FakeInput(DT_FLOAT))
+                   .Input(FakeInput(DT_INT32))
+                   .Input(FakeInput(DT_FLOAT))
+                   .Input(FakeInput(DT_INT32))
+                   .Input(FakeInput(DT_FLOAT))
+                   .Input(FakeInput(DT_INT32))
+                   .Attr("T", DT_QINT32)
+                   .Attr("lhs_quantization_axis", 1)
+                   .Attr("rhs_quantization_axis", 1)
+                   .Attr("output_quantization_axis", 1)
+                   .Attr("lhs_quantization_min_val", kInt32Min)
+                   .Attr("lhs_quantization_max_val", kInt32Max)
+                   .Attr("rhs_quantization_min_val", kInt32Min)
+                   .Attr("rhs_quantization_max_val", kInt32Max)
+                   .Attr("output_quantization_min_val", kInt32Min)
+                   .Attr("output_quantization_max_val", kInt32Max)
+                   .Finalize(node_def()));
+  TF_ASSERT_OK(InitOp());
+
+  AddInputFromArray<qint32>(TensorShape({2, 1}), {1, 2});
+  AddInputFromArray<qint32>(TensorShape({2, 3}), {-6, -4, -2, 0, 2, 4});
+  AddInputFromArray<float>(TensorShape({1}), {2});
+  AddInputFromArray<int32_t>(TensorShape({1}), {0});
+  AddInputFromArray<float>(TensorShape({3}), {2, 3, 4});
+  AddInputFromArray<int32_t>(TensorShape({3}), {0, 0, 0});
+  AddInputFromArray<float>(TensorShape({3}), {2, 3, 4});
+  AddInputFromArray<int32_t>(TensorShape({3}), {0, 0, 0});
+
+  absl::Status status = RunOpKernel();
+  EXPECT_TRUE(absl::IsInvalidArgument(status));
+  EXPECT_THAT(status.message(),
+              ::testing::HasSubstr("must be per-axis quantized"));
+}
+
 }  // namespace tensorflow
