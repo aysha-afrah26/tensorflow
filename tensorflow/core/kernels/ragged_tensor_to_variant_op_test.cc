@@ -544,6 +544,38 @@ TEST_F(RaggedTensorToVariantGradientKernelTest, DenseValuesShapeMismatchError) {
                              "dense_values_shape number of elements (1)"));
 }
 
+TEST_F(RaggedTensorToVariantGradientKernelTest,
+       DenseValuesShapeUnderflowError) {
+  auto encoded_variant_grad_1 =
+      CreateVariantFromRagged<int, int64_t>({}, {3}, {1, 2, 3});
+  auto encoded_variant_grad_2 =
+      CreateVariantFromRagged<int, int64_t>({}, {2}, {4, 5});
+
+  BuildEncodeRaggedTensorGradientGraph<int, int64_t>(
+      {encoded_variant_grad_1, encoded_variant_grad_2}, {0, 3, 5}, {10});
+
+  EXPECT_THAT(
+      RunOpKernel(),
+      absl_testing::StatusIs(error::INVALID_ARGUMENT,
+                             "Sum of ragged gradient flat_values sizes (5) != "
+                             "dense_values_shape number of elements (10)"));
+}
+
+TEST_F(RaggedTensorToVariantGradientKernelTest,
+       SingleVariantDenseValuesShapeMismatchError) {
+  auto encoded_variant_grad_1 =
+      CreateVariantFromRagged<int, int64_t>({}, {3}, {1, 2, 3});
+
+  BuildEncodeRaggedTensorGradientGraph<int, int64_t>({encoded_variant_grad_1},
+                                                     {0, 3}, {1});
+
+  EXPECT_THAT(
+      RunOpKernel(),
+      absl_testing::StatusIs(error::INVALID_ARGUMENT,
+                             "Sum of ragged gradient flat_values sizes (3) != "
+                             "dense_values_shape number of elements (1)"));
+}
+
 TEST_F(RaggedTensorToVariantGradientKernelTest, RowSplitsIncreasingError) {
   // encoded_variant_grad=
   // [ [1, 2, 3],
