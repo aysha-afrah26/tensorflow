@@ -16,6 +16,7 @@ limitations under the License.
 #include "tensorflow/core/kernels/lookup_util.h"
 
 #include <cstdint>
+#include <limits>
 
 #include "absl/status/status.h"
 #include "tensorflow/core/framework/function_handle_cache.h"
@@ -227,7 +228,18 @@ class TextFileLineIterator
               absl::StrCat("Field ", token, " in line ", next_id_,
                            " is not a valid int32."));
         }
-        tensor->flat<int32_t>()(0) = value + offset_;
+        // Compare before adding: offset_ can be any int64, so even the int64
+        // sum could overflow.
+        if ((offset_ > 0 &&
+             value > std::numeric_limits<int32_t>::max() - offset_) ||
+            (offset_ < 0 &&
+             value < std::numeric_limits<int32_t>::min() - offset_)) {
+          valid_ = false;
+          return absl::InvalidArgumentError(
+              absl::StrCat("Field ", token, " in line ", next_id_,
+                           " with offset ", offset_, " overflows int32."));
+        }
+        tensor->flat<int32_t>()(0) = static_cast<int32_t>(value + offset_);
       } break;
       case DT_INT64: {
         int64_t value;
@@ -237,7 +249,16 @@ class TextFileLineIterator
               absl::StrCat("Field ", token, " in line ", next_id_,
                            " is not a valid int64."));
         }
-        tensor->flat<int64_t>()(0) = value;
+        if ((offset_ > 0 &&
+             value > std::numeric_limits<int64_t>::max() - offset_) ||
+            (offset_ < 0 &&
+             value < std::numeric_limits<int64_t>::min() - offset_)) {
+          valid_ = false;
+          return absl::InvalidArgumentError(
+              absl::StrCat("Field ", token, " in line ", next_id_,
+                           " with offset ", offset_, " overflows int64."));
+        }
+        tensor->flat<int64_t>()(0) = value + offset_;
       } break;
       case DT_FLOAT: {
         float value;
